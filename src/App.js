@@ -29,6 +29,25 @@ const App = () => {
     }
   };
 
+  const connectWallet = async () => {
+    try {
+      // ユーザが認証可能なウォレットアドレスを持っているか確認
+      const { ethereum } = window;
+      if (!ethereum) {
+        alert("Get MetaMask!");
+        return;
+      }
+      // 持っている場合は、ユーザーに対してウォレットへのアクセス許可を求める。許可されれば、ユーザーの最初のウォレットアドレスを currentAccount に格納
+      const accounts = await ethereum.request({
+        method: "eth_requestAccounts",
+      });
+      console.log("Connected: ", accounts[0]);
+      setCurrentAccount(accounts[0]);
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
   useEffect(() => {
     checkIfWalletIsConnected();
   }, []);
@@ -55,6 +74,18 @@ const App = () => {
         <button className="waveButton" onClick={null}>
           Wave at Me
         </button>
+        {/* currentAccountが存在しない場合 */}
+        {!currentAccount && (
+          <button className="waveButton" onClick={connectWallet}>
+            Connect Wallet
+          </button>
+        )}
+        {/* currentAccountが存在する場合 */}
+        {currentAccount && (
+          <button className="waveButton" onClick={connectWallet}>
+            Wallet Connected
+          </button>
+        )}
       </div>
     </div>
   );
