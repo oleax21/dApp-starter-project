@@ -6,8 +6,76 @@ import abi from "./utils/WavePortal.json";
 const App = () => {
   const [currentAccount, setCurrentAccount] = useState("");
   console.log("currentAccount: ", currentAccount);
-  const contractAddress = "0x08c57A89b38Aae662355e79A66F8C4B5AEeDD723";
+  const [allWaves, setAllWaves] = useState([]);
+  const [messageValue, setMessageValue] = useState("");
+  const contractAddress = "0x5C63D0afCDa90Ec79e9FBE88B279536a9D32090d";
   const contractABI = abi.abi;
+
+  const getAllWaves = async () => {
+    const { ethereum } = window;
+
+    try {
+      if (ethereum) {
+        const provider = new ethers.providers.Web3Provider(ethereum);
+        const signer = provider.getSigner();
+        const wavePortalContract = new ethers.Contract(
+          contractAddress,
+          contractABI,
+          signer
+        );
+        const waves = await wavePortalContract.getAllWaves();
+        const wavesCleaned = waves.map((wave) => {
+          return {
+            address: wave.waver,
+            timestamp: new Date(wave.timestamp * 1000),
+            message: wave.message,
+          };
+        });
+        setAllWaves(wavesCleaned);
+      } else {
+        console.log("Ethereum object doesn't exist!");
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  // emitされてイベントに反応する
+  useEffect(() => {
+    let wavePortalContract;
+
+    const onNewWave = (from, timestamp, message) => {
+      console.log("NewWave", from, timestamp, message);
+      setAllWaves((prevState) => [
+        ...prevState,
+        {
+          address: from,
+          timestamp: new Date(timestamp * 1000),
+          message: message,
+        },
+      ]);
+    };
+
+    // NewWaveイベントがコントラクトから発信されたときに、情報を受けと取る
+    if (window.ethereum) {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+
+      wavePortalContract = new ethers.Contract(
+        contractAddress,
+        contractABI,
+        signer
+      );
+      wavePortalContract.on("NewWave", onNewWave);
+    }
+
+    // メモリリークを防ぐため、NewWaveのイベントを解除
+    return () => {
+      if (wavePortalContract) {
+        wavePortalContract.off("NewWave", onNewWave);
+      }
+    };
+  }, []);
 
   // window.ethereumにアクセスできることを確認
   const checkIfWalletIsConnected = async () => {
@@ -52,6 +120,7 @@ const App = () => {
     }
   };
 
+  // 「wave」の回数をカウントする関数
   const wave = async () => {
     try {
       const { ethereum } = window;
@@ -65,7 +134,9 @@ const App = () => {
         );
         let count = await wavePortalContract.getTotalWaves();
         console.log("Retrieved total wave count...", count.toNumber());
-        const waveTxn = await wavePortalContract.wave();
+        const waveTxn = await wavePortalContract.wave(messageValue, {
+          gasLimit: 300000,
+        });
         console.log("Minting...", waveTxn.hash);
         await waveTxn.wait();
         console.log("Minted --", waveTxn.hash);
@@ -102,9 +173,8 @@ const App = () => {
             ✨
           </span>
         </div>
-        <button className="waveButton" onClick={wave}>
-          Wave at Me
-        </button>
+        <br />
+        {/* ウォレットコネクトボタン */}
         {/* currentAccountが存在しない場合 */}
         {!currentAccount && (
           <button className="waveButton" onClick={connectWallet}>
@@ -117,6 +187,42 @@ const App = () => {
             Wallet Connected
           </button>
         )}
+        {/* waveボタン */}
+        <button className="waveButton" onClick={wave}>
+          Wave at Me
+        </button>
+        {/* メッセージボックス */}
+        {currentAccount && (
+          <textarea
+            name="messageArea"
+            placeholder="メッセージはこちら"
+            type="text"
+            id="message"
+            value={messageValue}
+            onChange={(e) => setMessageValue(e.target.value)}
+          />
+        )}
+        {/* 履歴表示 */}
+        {currentAccount &&
+          allWaves
+            .slice(0)
+            .reverse()
+            .map((wave, index) => {
+              return (
+                <div
+                  key={index}
+                  style={{
+                    backgroundColor: "#F8F8FF",
+                    marginTop: "16px",
+                    padding: "8px",
+                  }}
+                >
+                  <div>Address: {wave.address}</div>
+                  <div>Time: {wave.timestamp.toString()}</div>
+                  <div>Message: {wave.message}</div>
+                </div>
+              );
+            })}
       </div>
     </div>
   );
